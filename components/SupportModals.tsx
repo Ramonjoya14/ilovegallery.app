@@ -2,6 +2,7 @@ import { useSettings } from '@/context/AppSettingsContext';
 import { FontAwesome } from '@expo/vector-icons';
 import React from 'react';
 import { Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface SupportModalsProps {
     isVisible: boolean;
@@ -11,6 +12,7 @@ interface SupportModalsProps {
 
 export default function SupportModals({ isVisible, onClose, type }: SupportModalsProps) {
     const { theme, t } = useSettings();
+    const insets = useSafeAreaInsets();
 
     const renderPrivacy = () => (
         <ScrollView showsVerticalScrollIndicator={false}>
@@ -60,7 +62,7 @@ export default function SupportModals({ isVisible, onClose, type }: SupportModal
             onRequestClose={onClose}
         >
             <View style={styles.overlay}>
-                <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+                <View style={[styles.modalContent, { backgroundColor: theme.background, paddingBottom: insets.bottom + 20 }]}>
                     <View style={styles.modalHeader}>
                         <TouchableOpacity onPress={onClose} style={[styles.closeButton, { backgroundColor: theme.card }]}>
                             <FontAwesome name="times" size={16} color={theme.text} />

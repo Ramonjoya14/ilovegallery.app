@@ -412,7 +412,7 @@ export default function CreateEventScreen() {
                     activeOpacity={1}
                     onPress={() => setShowCoverSource(false)}
                 >
-                    <View style={[styles.sourceModalContent, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                    <View style={[styles.sourceModalContent, { backgroundColor: theme.card, borderColor: theme.border, paddingBottom: insets.bottom + 20 }]}>
                         <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
                         <Text style={[styles.sourceModalTitle, { color: theme.text }]}>{t('select_source')}</Text>
 

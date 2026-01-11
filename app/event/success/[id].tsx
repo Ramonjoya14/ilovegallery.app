@@ -147,7 +147,7 @@ export default function EventSuccessScreen() {
                 </ScrollView>
 
                 {/* Bottom Button */}
-                <View style={[styles.bottomContainer, { paddingBottom: Math.max(insets.bottom, 20), backgroundColor: theme.background }]}>
+                <View style={[styles.bottomContainer, { paddingBottom: insets.bottom + 30, backgroundColor: theme.background }]}>
                     <TouchableOpacity
                         style={[styles.openCameraButton, { backgroundColor: theme.tint, shadowColor: theme.tint }]}
                         onPress={() => router.replace(`/event/${id}`)}
