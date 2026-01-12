@@ -90,6 +90,9 @@ function RootLayoutNav({ fontsLoaded }: { fontsLoaded: boolean }) {
         <Stack.Screen name="event/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="event/success/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="join/[code]" options={{ headerShown: false }} />
+        <Stack.Screen name="profile/personal-info" options={{ headerShown: false }} />
+        <Stack.Screen name="profile/security" options={{ headerShown: false }} />
+        <Stack.Screen name="profile/event-calendar" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>

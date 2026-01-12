@@ -13,7 +13,7 @@ const { width } = Dimensions.get('window');
 export default function StatsScreen() {
     const { user } = useAuth();
     const router = useRouter();
-    const { theme, t, isDark } = useSettings();
+    const { theme, t, isDark, language } = useSettings();
     const [range, setRange] = useState('time_all');
     const [stats, setStats] = useState({
         photos: 0,
@@ -141,13 +141,14 @@ export default function StatsScreen() {
             const growthVal = lastWeekPhotos === 0 ? (currentWeekPhotos > 0 ? 100 : 0) : Math.round(((currentWeekPhotos - lastWeekPhotos) / lastWeekPhotos) * 100);
             setGrowth(growthVal);
 
-            // Best Memories: Sort FILTERED events by activity
-            const sortedEvents = [...filteredEvents].sort((a, b) => {
-                const scoreA = (a.views || 0) + (a.photoCount || 0);
-                const scoreB = (b.views || 0) + (b.photoCount || 0);
-                return scoreB - scoreA;
+            // Best Memories: Sort FILTERED events by user interaction
+            // We prioritize events with more views and more photos
+            const sortedMemories = [...filteredEvents].sort((a, b) => {
+                const interactA = (a.views || 0) * 2 + (a.photoCount || 0);
+                const interactB = (b.views || 0) * 2 + (b.photoCount || 0);
+                return interactB - interactA;
             });
-            setBestMemories(sortedEvents.slice(0, 6));
+            setBestMemories(sortedMemories.slice(0, 10)); // Show up to 10 best memories
 
         } catch (error) {
             console.error("Error fetching stats:", error);
@@ -282,11 +283,19 @@ export default function StatsScreen() {
                     </Text>
                 </View>
 
-                <View style={[styles.chartPlaceholder, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={() => router.push('/profile/event-calendar')}
+                    style={[styles.chartPlaceholder, { backgroundColor: theme.card, borderColor: theme.border }]}
+                >
                     <LinearGradient
                         colors={[isDark ? 'rgba(255, 107, 0, 0.15)' : 'rgba(255, 107, 0, 0.05)', 'transparent']}
                         style={styles.chartGradientBg}
                     />
+
+                    <View style={styles.chartInfoIcon}>
+                        <FontAwesome name="info-circle" size={16} color={theme.tint} />
+                    </View>
 
                     <View style={styles.chartLineContainer}>
                         {/* Horizontal Grid Lines */}
@@ -353,7 +362,7 @@ export default function StatsScreen() {
                         <Text style={[styles.chartDay, { color: theme.textSecondary }]}>{t('stats_week')} 3</Text>
                         <Text style={[styles.chartDay, { color: theme.textSecondary }]}>{t('stats_week')} 4</Text>
                     </View>
-                </View>
+                </TouchableOpacity>
 
                 {/* Mejores Recuerdos */}
                 {
@@ -382,9 +391,9 @@ export default function StatsScreen() {
                                     >
                                         <View style={[styles.bestMemoryThumb, { backgroundColor: theme.card }]}>
                                             {event.pin && event.pin.trim() !== '' ? (
-                                                <View style={[styles.privateOverlay, { backgroundColor: theme.border }]}>
-                                                    <FontAwesome name="lock" size={24} color={theme.tint} />
-                                                    <Text style={[styles.privateText, { color: theme.tint }]}>{t('private')}</Text>
+                                                <View style={styles.privateOverlay}>
+                                                    <FontAwesome name="lock" size={26} color={theme.tint} />
+                                                    <Text style={styles.privateText}>{language === 'es' ? 'PRIVADO' : 'PRIVATE'}</Text>
                                                 </View>
                                             ) : (
                                                 <Image
@@ -397,7 +406,7 @@ export default function StatsScreen() {
                                             </View>
                                         </View>
                                         <Text style={[styles.bestMemoryTitle, { color: theme.text }]} numberOfLines={1}>
-                                            {event.pin && event.pin.trim() !== '' ? t('private_content') : event.name}
+                                            {event.name}
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
@@ -585,6 +594,13 @@ const styles = StyleSheet.create({
         right: 0,
         bottom: 0,
     },
+    chartInfoIcon: {
+        position: 'absolute',
+        top: 15,
+        right: 15,
+        zIndex: 10,
+        opacity: 0.8,
+    },
     chartLineContainer: {
         height: 140,
         width: '100%',
@@ -678,14 +694,15 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#2A1810',
         borderRadius: 20,
+        backgroundColor: '#1E1915',
     },
     privateText: {
         color: '#FF6B00',
         fontSize: 10,
-        fontWeight: 'bold',
-        marginTop: 8,
+        fontWeight: '900',
+        marginTop: 10,
+        letterSpacing: 2,
     },
     memoryImage: {
         width: '100%',

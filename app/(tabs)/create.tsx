@@ -27,7 +27,7 @@ export default function CreateEventScreen() {
     const { user } = useAuth();
     const router = useRouter();
     const { showAlert } = useAlert();
-    const { t, theme } = useSettings();
+    const { t, theme, language } = useSettings();
     const [selectedTemplate, setSelectedTemplate] = useState('fiesta');
     const [hasPin, setHasPin] = useState(false);
     const [pin, setPin] = useState('');
@@ -393,8 +393,8 @@ export default function CreateEventScreen() {
                     </View>
                 )}
                 <TouchableOpacity activeOpacity={0.8} style={[styles.submitButton, { backgroundColor: theme.tint }, isLoading && { opacity: 0.6 }]} onPress={handleCreateEvent} disabled={isLoading}>
-                    <FontAwesome name="camera" size={18} color="#FFF" />
-                    <Text style={styles.submitText}>{isLoading ? t('creating') : t('create_camera')}</Text>
+                    <FontAwesome name="calendar-plus-o" size={18} color="#FFF" />
+                    <Text style={styles.submitText}>{isLoading ? t('creating') : (language === 'es' ? 'Crear Evento' : 'Create Event')}</Text>
                 </TouchableOpacity>
 
                 <View style={{ height: 60 + insets.bottom }} />

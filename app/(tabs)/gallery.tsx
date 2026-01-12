@@ -159,9 +159,9 @@ export default function GalleryScreen() {
                                                 <Text style={styles.badgeText}>{roll.photos}</Text>
                                             </View>
                                             {roll.hasPin && (
-                                                <View style={styles.lockOverlay}>
-                                                    <FontAwesome name="lock" size={30} color={theme.tint} />
-                                                    <Text style={[styles.lockText, { color: theme.tint }]}>PRIVADO</Text>
+                                                <View style={[styles.lockOverlay, { backgroundColor: '#1E1915' }]}>
+                                                    <FontAwesome name="lock" size={26} color={theme.tint} />
+                                                    <Text style={styles.lockText}>{language === 'es' ? 'PRIVADO' : 'PRIVATE'}</Text>
                                                 </View>
                                             )}
                                             {roll.isFavorite && (
@@ -412,10 +412,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     lockText: {
+        color: '#FF6B00',
         fontSize: 10,
-        fontWeight: 'bold',
-        marginTop: 8,
-        letterSpacing: 1,
+        fontWeight: '900',
+        marginTop: 10,
+        letterSpacing: 2,
     },
     liveIndicator: {
         position: 'absolute',

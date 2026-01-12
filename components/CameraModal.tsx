@@ -1,33 +1,51 @@
 import { useColorScheme } from '@/components/useColorScheme';
 import { useAlert } from '@/context/AlertContext';
 import { useSettings } from '@/context/AppSettingsContext';
-import { FontAwesome } from '@expo/vector-icons';
+import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { CameraType, CameraView, FlashMode, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import { CameraType, CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as NavigationBar from 'expo-navigation-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { Dimensions, Modal, Platform, Image as RNImage, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Modal, Platform, Image as RNImage, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import PhotoViewerModal from './PhotoViewerModal';
 
 const { width, height } = Dimensions.get('window');
 
 interface CameraModalProps {
     isVisible: boolean;
     onClose: () => void;
-    onCapture: (uri: string, type: 'image' | 'video') => Promise<void>;
+    onCapture: (captures: { uri: string, type: 'image' | 'video' }[]) => Promise<void>;
     maxPhotos: number;
     currentPhotos: number;
     eventName: string;
+    pendingPhotos?: any[];
+    sessionHistory?: any[];
+    allPhotos?: any[];
+    isProcessing?: boolean;
+    onDeletePhoto?: (id: string) => void;
 }
 
-export default function CameraModal({ isVisible, onClose, onCapture, maxPhotos, currentPhotos, eventName }: CameraModalProps) {
+export default function CameraModal({
+    isVisible,
+    onClose,
+    onCapture,
+    maxPhotos,
+    currentPhotos,
+    eventName,
+    pendingPhotos = [],
+    sessionHistory = [],
+    allPhotos = [],
+    isProcessing = false,
+    onDeletePhoto
+}: CameraModalProps) {
     const insets = useSafeAreaInsets();
     const [permission, requestPermission] = useCameraPermissions();
     const [micPermission, requestMicPermission] = useMicrophonePermissions();
     const [type, setType] = useState<CameraType>('back');
-    const [flash, setFlash] = useState<FlashMode>('off');
+    const [flashMode, setFlashMode] = useState<'off' | 'on' | 'auto' | 'torch'>('off');
     const [mode, setMode] = useState<'picture' | 'video'>('picture');
     const [isRecording, setIsRecording] = useState(false);
     const [isCapturing, setIsCapturing] = useState(false);
@@ -39,6 +57,30 @@ export default function CameraModal({ isVisible, onClose, onCapture, maxPhotos, 
     const colorScheme = useColorScheme();
     const cameraRef = useRef<CameraView>(null);
     const recordingInterval = useRef<any>(null);
+    const [viewerVisible, setViewerVisible] = useState(false);
+    const [viewerInitialIndex, setViewerInitialIndex] = useState(0);
+
+    const [activeFilter, setActiveFilter] = useState('normal');
+    const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+
+    const FILTERS = [
+        { id: 'normal', name: 'Normal', icon: 'camera-outline', overlay: 'transparent', wb: 'auto' },
+        { id: 'sepia', name: 'Vintage', icon: 'color-filter-outline', overlay: 'rgba(255, 165, 0, 0.15)', wb: 'sunny' },
+        { id: 'bw', name: 'B&W', icon: 'moon-outline', overlay: 'rgba(0, 0, 0, 0.3)', wb: 'cloudy' },
+        { id: 'warm', name: 'Warm', icon: 'sunny-outline', overlay: 'rgba(255, 69, 0, 0.1)', wb: 'incandescent' },
+        { id: 'cold', name: 'Cold', icon: 'snow-outline', overlay: 'rgba(0, 0, 255, 0.1)', wb: 'fluorescent' },
+    ];
+
+    // Get photos relevant to this session: pending + already uploaded + previous photos
+    // We deduplicate to avoid showing sessionHistory items twice if allPhotos updated
+    const sessionPhotos = [
+        ...pendingPhotos,
+        ...sessionHistory,
+        ...allPhotos.filter(ap => !sessionHistory.some(sh => sh.id === ap.id))
+    ];
+
+    // Most recent image for thumbnail
+    const latestImage = sessionPhotos[0]?.url || lastPhotoUri;
 
     useEffect(() => {
         if (Platform.OS === 'android') {
@@ -122,7 +164,12 @@ export default function CameraModal({ isVisible, onClose, onCapture, maxPhotos, 
     };
 
     const toggleFlash = () => {
-        setFlash(current => (current === 'off' ? 'on' : 'off'));
+        setFlashMode(prev => {
+            if (prev === 'off') return 'auto';
+            if (prev === 'auto') return 'on';
+            if (prev === 'on') return 'torch';
+            return 'off';
+        });
     };
 
     const handleStopRecording = () => {
@@ -134,7 +181,7 @@ export default function CameraModal({ isVisible, onClose, onCapture, maxPhotos, 
     const onCaptureProxy = async (uri: string, type: 'image' | 'video') => {
         setLastPhotoUri(uri);
         // Fire and forget: don't await the parent's onCapture to keep shutter instant
-        onCapture(uri, type).catch(e => console.error("Bg upload failed", e));
+        onCapture([{ uri, type }]).catch(e => console.error("Bg upload failed", e));
     };
 
     const handleGalleryUpload = async () => {
@@ -150,18 +197,23 @@ export default function CameraModal({ isVisible, onClose, onCapture, maxPhotos, 
         }
 
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images', 'videos'],
+            mediaTypes: ImagePicker.MediaTypeOptions.All,
             allowsMultipleSelection: true,
             selectionLimit: remaining,
             quality: 0.8,
         });
 
         if (!result.canceled && result.assets && result.assets.length > 0) {
-            // Process all selected assets
-            for (const asset of result.assets) {
-                const type = asset.type === 'video' ? 'video' : 'image';
-                onCaptureProxy(asset.uri, type);
-            }
+            const captures = result.assets.map(asset => ({
+                uri: asset.uri,
+                type: (asset.type === 'video' ? 'video' : 'image') as 'image' | 'video'
+            }));
+
+            // Set first one as thumbnail
+            setLastPhotoUri(captures[0].uri);
+
+            // Batch send to parent
+            onCapture(captures).catch(e => console.error("Batch upload failed", e));
         }
     };
 
@@ -240,10 +292,13 @@ export default function CameraModal({ isVisible, onClose, onCapture, maxPhotos, 
                 <CameraView
                     style={styles.camera}
                     facing={type}
-                    flash={flash}
+                    flash={flashMode === 'torch' ? 'off' : (flashMode as any)}
+                    enableTorch={flashMode === 'torch'}
                     ref={cameraRef}
                     mode={mode}
                 >
+                    {/* Filter Overlay */}
+                    <View style={[StyleSheet.absoluteFill, { backgroundColor: FILTERS.find(f => f.id === activeFilter)?.overlay || 'transparent' }]} pointerEvents="none" />
                     <LinearGradient
                         colors={['rgba(0,0,0,0.6)', 'transparent', 'rgba(0,0,0,0.8)']}
                         style={[styles.overlay, { justifyContent: 'space-between' }]}
@@ -267,12 +322,61 @@ export default function CameraModal({ isVisible, onClose, onCapture, maxPhotos, 
                         {/* Side Tools */}
                         <View style={styles.sideTools}>
                             <TouchableOpacity onPress={toggleFlash} style={styles.sideBtn}>
-                                <FontAwesome name={flash === 'on' ? "bolt" : "toggle-off"} size={22} color="#FFF" />
+                                <Ionicons
+                                    name={
+                                        flashMode === 'on' ? "flash" :
+                                            flashMode === 'auto' ? "flash-outline" :
+                                                flashMode === 'torch' ? "flashlight" :
+                                                    "flash-off-outline"
+                                    }
+                                    size={22}
+                                    color={flashMode === 'off' ? "#FFF" : "#FF6B00"}
+                                />
+                                {flashMode === 'auto' && (
+                                    <View style={styles.flashAutoBadge}>
+                                        <Text style={styles.flashAutoText}>A</Text>
+                                    </View>
+                                )}
                             </TouchableOpacity>
                             <TouchableOpacity onPress={toggleCameraType} style={styles.sideBtn}>
                                 <FontAwesome name="refresh" size={22} color="#FFF" />
                             </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
+                                style={[styles.sideBtn, isFilterMenuOpen && styles.sideBtnActive]}
+                            >
+                                <Ionicons name="color-wand-outline" size={24} color={isFilterMenuOpen ? "#FF6B00" : "#FFF"} />
+                            </TouchableOpacity>
                         </View>
+
+                        {/* Filter Selector - Top Position */}
+                        {isFilterMenuOpen && (
+                            <View style={[styles.filterContainer, { top: Math.max(insets.top, 50) + 70 }]}>
+                                <BlurView intensity={40} tint="dark" style={styles.filterBar}>
+                                    {FILTERS.map((f) => (
+                                        <TouchableOpacity
+                                            key={f.id}
+                                            onPress={() => setActiveFilter(f.id)}
+                                            style={[
+                                                styles.filterItem,
+                                                activeFilter === f.id && styles.filterItemActive
+                                            ]}
+                                        >
+                                            <View style={[styles.filterIconCircle, activeFilter === f.id && styles.filterIconCircleActive]}>
+                                                <Ionicons
+                                                    name={f.icon as any}
+                                                    size={16}
+                                                    color={activeFilter === f.id ? "#FFF" : "#8E8E93"}
+                                                />
+                                            </View>
+                                            <Text style={[styles.filterText, activeFilter === f.id && styles.filterTextActive]}>
+                                                {f.name}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </BlurView>
+                            </View>
+                        )}
 
                         {/* Bottom Section */}
                         <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 20) }]}>
@@ -311,13 +415,21 @@ export default function CameraModal({ isVisible, onClose, onCapture, maxPhotos, 
                             )}
 
                             <View style={styles.captureRow}>
-                                <View style={styles.thumbnail}>
-                                    {lastPhotoUri ? (
-                                        <RNImage source={{ uri: lastPhotoUri }} style={styles.thumbnailImage} />
+                                <TouchableOpacity
+                                    style={styles.thumbnail}
+                                    onPress={() => {
+                                        if (sessionPhotos.length > 0) {
+                                            setViewerInitialIndex(0);
+                                            setViewerVisible(true);
+                                        }
+                                    }}
+                                >
+                                    {latestImage ? (
+                                        <RNImage source={{ uri: latestImage }} style={styles.thumbnailImage} />
                                     ) : (
                                         <View style={styles.thumbnailInner} />
                                     )}
-                                </View>
+                                </TouchableOpacity>
 
                                 <TouchableOpacity onPress={handleCapture} activeOpacity={0.8} style={styles.captureBtnContainer}>
                                     <View style={[styles.captureBtnOuter, mode === 'video' && { borderColor: '#FF3B30' }]}>
@@ -347,13 +459,48 @@ export default function CameraModal({ isVisible, onClose, onCapture, maxPhotos, 
                 </CameraView>
 
                 {/* Remaining Counter Overlay - Centered and Stable outside flex containers */}
-                {showRemaining && (
+                {showRemaining && !isProcessing && remaining > 0 && (
                     <View style={styles.remainingOverlayWrapper} pointerEvents="none">
                         <BlurView intensity={80} tint="dark" style={styles.remainingCard}>
                             <Text style={styles.remainingNumber}>{remaining}</Text>
                             <Text style={[styles.remainingText, { color: theme.textSecondary }]}>
                                 {language === 'es' ? 'RESTANTES' : 'REMAINING'}
                             </Text>
+                        </BlurView>
+                    </View>
+                )}
+
+                {/* Photo Viewer for the current session */}
+                <PhotoViewerModal
+                    isVisible={viewerVisible}
+                    onClose={() => setViewerVisible(false)}
+                    photos={sessionPhotos}
+                    initialIndex={viewerInitialIndex}
+                    showExtraActions={false}
+                    onDelete={(id) => {
+                        if (onDeletePhoto) onDeletePhoto(id);
+                        // If no photos left after delete, close viewer
+                        if (sessionPhotos.length <= 1) setViewerVisible(false);
+                    }}
+                    eventName={eventName}
+                />
+
+                {/* Batch Processing Overlay */}
+                {isProcessing && (
+                    <View style={styles.processingOverlay}>
+                        <BlurView intensity={90} tint="dark" style={styles.processingCard}>
+                            <ActivityIndicator size="large" color="#FF6B00" />
+                            <Text style={styles.processingTitle}>
+                                {language === 'es' ? 'Procesando fotos...' : 'Processing photos...'}
+                            </Text>
+                            <Text style={styles.processingSubtitle}>
+                                {language === 'es' ? 'Espere un momento, por favor' : 'Please wait a moment'}
+                            </Text>
+                            {pendingPhotos.length > 0 && (
+                                <Text style={styles.processingCount}>
+                                    {pendingPhotos.length} {language === 'es' ? 'restantes' : 'remaining'}
+                                </Text>
+                            )}
                         </BlurView>
                     </View>
                 )}
@@ -436,6 +583,10 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 15,
+        borderRadius: 22,
+    },
+    sideBtnActive: {
+        backgroundColor: 'rgba(255, 107, 0, 0.15)',
     },
     remainingOverlayWrapper: {
         ...StyleSheet.absoluteFillObject,
@@ -597,6 +748,110 @@ const styles = StyleSheet.create({
     bgUploadText: {
         color: '#FFF',
         fontSize: 10,
+        fontWeight: 'bold',
+    },
+    processingOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000,
+    },
+    processingCard: {
+        width: 280,
+        padding: 30,
+        borderRadius: 25,
+        alignItems: 'center',
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    processingTitle: {
+        color: '#FFF',
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginTop: 20,
+        textAlign: 'center',
+    },
+    processingSubtitle: {
+        color: '#8E8E93',
+        fontSize: 14,
+        marginTop: 8,
+        textAlign: 'center',
+    },
+    processingCount: {
+        color: '#FF6B00',
+        fontSize: 12,
+        fontWeight: 'bold',
+        marginTop: 15,
+        backgroundColor: 'rgba(255, 107, 0, 0.1)',
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+        borderRadius: 10,
+    },
+    filterContainer: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        alignItems: 'center',
+        zIndex: 100,
+    },
+    filterBar: {
+        flexDirection: 'row',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 35,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.15)',
+        backgroundColor: 'rgba(0,0,0,0.3)',
+    },
+    filterItem: {
+        alignItems: 'center',
+        marginHorizontal: 10,
+        opacity: 0.6,
+    },
+    filterItemActive: {
+        opacity: 1,
+        transform: [{ scale: 1.1 }],
+    },
+    filterIconCircle: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 4,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    filterIconCircleActive: {
+        backgroundColor: '#FF6B00',
+        borderColor: '#FF6B00',
+    },
+    filterText: {
+        color: '#8E8E93',
+        fontSize: 10,
+        fontWeight: '600',
+    },
+    filterTextActive: {
+        color: '#FFF',
+    },
+    flashAutoBadge: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        backgroundColor: '#FF6B00',
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    flashAutoText: {
+        color: '#FFF',
+        fontSize: 8,
         fontWeight: 'bold',
     }
 });

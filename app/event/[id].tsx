@@ -48,6 +48,8 @@ export default function EventDetailScreen() {
     const [isSetPinVisible, setIsSetPinVisible] = useState(false);
     const [shareModalVisible, setShareModalVisible] = useState(false);
     const [participants, setParticipants] = useState<{ uid: string; displayName: string; photoURL: string | null }[]>([]);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [sessionHistory, setSessionHistory] = useState<Photo[]>([]);
 
     const isOrganizer = user && event && user.uid === event.organizerId;
 
@@ -132,8 +134,11 @@ export default function EventDetailScreen() {
             });
 
             if (!result.canceled && result.assets && result.assets.length > 0) {
-                const asset = result.assets[0];
-                onCapture(asset.uri, asset.type === 'video' ? 'video' : 'image');
+                const captures = result.assets.map(asset => ({
+                    uri: asset.uri,
+                    type: (asset.type === 'video' ? 'video' : 'image') as 'image' | 'video'
+                }));
+                onCapture(captures);
             }
         } catch (error) {
             console.error("Error picking from gallery:", error);
@@ -154,20 +159,38 @@ export default function EventDetailScreen() {
         setIsCameraVisible(true);
     };
 
-    const onCapture = async (uri: string, type: 'image' | 'video') => {
+    const onCapture = async (captures: { uri: string, type: 'image' | 'video' }[]) => {
         if (!user || !event) return;
 
-        const tempId = `temp-${Date.now()}-${Math.random()}`;
-        const tempPhoto: Photo = {
-            id: tempId,
-            url: uri,
+        const isBatch = captures.length > 1;
+        if (isBatch) setIsProcessing(true);
+
+        const newPendingPhotos: Photo[] = captures.map(c => ({
+            id: `temp-${Date.now()}-${Math.random()}`,
+            url: c.uri,
             eventId: event.id as string,
             userId: user.uid,
             userName: user.displayName || t('guest'),
             timestamp: new Date(),
-            type: type
-        };
-        setPendingPhotos(prev => [tempPhoto, ...prev]);
+            type: c.type
+        }));
+
+        setPendingPhotos(prev => [...newPendingPhotos, ...prev]);
+
+        // Process uploads in sequence to avoid overwhelming memory and network
+        for (const photo of newPendingPhotos) {
+            await processSingleUpload(photo.url, photo.type as 'image' | 'video', photo.id!);
+        }
+
+        if (isBatch) {
+            setIsProcessing(false);
+            // Refresh details once at the end of batch
+            fetchEventDetails(true);
+        }
+    };
+
+    const processSingleUpload = async (uri: string, type: 'image' | 'video', tempId: string) => {
+        if (!user || !event) return;
 
         try {
             if (Platform.OS !== 'web') {
@@ -183,7 +206,7 @@ export default function EventDetailScreen() {
             const fileName = `photos/${event.id}/${uniqueId}.${ext}`;
             const downloadUrl = await storageService.uploadImage(uri, fileName);
 
-            await databaseService.addPhoto({
+            const photoData: Photo = {
                 url: downloadUrl,
                 eventId: event.id as string,
                 userId: user.uid,
@@ -191,14 +214,25 @@ export default function EventDetailScreen() {
                 timestamp: new Date(),
                 type: type,
                 storagePath: fileName
-            });
+            };
 
-            await fetchEventDetails(true);
+            const newPhotoId = await databaseService.addPhoto(photoData);
+            const savedPhoto = { ...photoData, id: newPhotoId };
+
+            // Update states efficiently
+            setSessionHistory(prev => [savedPhoto, ...prev]);
             setPendingPhotos(prev => prev.filter(p => p.id !== tempId));
+
+            // Only fetch if not in a batch (to avoid spamming)
+            if (!isProcessing) {
+                await fetchEventDetails(true);
+            } else {
+                // Update local count manually for the UI while batching
+                setEvent(prev => prev ? { ...prev, photoCount: (prev.photoCount || 0) + 1 } : null);
+            }
         } catch (error: any) {
             console.error("Background upload failed:", error);
             setPendingPhotos(prev => prev.filter(p => p.id !== tempId));
-            setEvent(prev => prev ? { ...prev, photoCount: Math.max((prev.photoCount || 1) - 1, 0) } : null);
             showAlert({ title: t('alert_error'), message: t('error_save_generic'), type: 'error' });
         }
     };
@@ -281,16 +315,28 @@ export default function EventDetailScreen() {
     };
 
     const handleDeletePhoto = (photoId: string) => {
+        const isPending = photoId.startsWith('temp-');
         const msg = t('confirm_delete_photo');
+
         const onConfirm = async () => {
+            if (isPending) {
+                setPendingPhotos(prev => prev.filter(p => p.id !== photoId));
+                return;
+            }
+
             try {
-                setIsUploading(true);
+                // If it was a session photo, remove it from history too
+                setSessionHistory(prev => prev.filter(p => p.id !== photoId));
+
                 await databaseService.deletePhoto(photoId, id as string);
-                await fetchEventDetails();
+
+                // Update local count immediately for the camera UI
+                setEvent(prev => prev ? { ...prev, photoCount: Math.max((prev.photoCount || 1) - 1, 0) } : null);
+
+                // Refresh full details
+                await fetchEventDetails(true);
             } catch (error) {
                 showAlert({ title: t('alert_error'), message: t('error_delete_photo'), type: 'error' });
-            } finally {
-                setIsUploading(false);
             }
         };
 
@@ -744,6 +790,11 @@ export default function EventDetailScreen() {
                 onCapture={onCapture}
                 maxPhotos={event.maxPhotos}
                 currentPhotos={(event.photoCount || 0) + pendingPhotos.length}
+                pendingPhotos={pendingPhotos}
+                sessionHistory={sessionHistory}
+                allPhotos={photos}
+                isProcessing={isProcessing}
+                onDeletePhoto={handleDeletePhoto}
                 eventName={event.name}
             />
             <PhotoViewerModal

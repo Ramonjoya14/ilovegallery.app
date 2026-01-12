@@ -7,6 +7,7 @@ import { ResizeMode, Video } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
 import * as MediaLibrary from 'expo-media-library';
+import * as NavigationBar from 'expo-navigation-bar';
 import * as Sharing from 'expo-sharing';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -41,6 +42,7 @@ interface PhotoViewerModalProps {
     onDelete?: (photoId: string) => void;
     onToggleLike?: (photoId: string, isLiked: boolean) => void;
     eventName?: string;
+    showExtraActions?: boolean;
 }
 
 const { width, height } = Dimensions.get('window');
@@ -130,7 +132,8 @@ export default function PhotoViewerModal({
     initialIndex,
     onDelete,
     onToggleLike,
-    eventName
+    eventName,
+    showExtraActions = true
 }: PhotoViewerModalProps) {
     const { theme, t } = useSettings();
     const { showAlert } = useAlert();
@@ -139,6 +142,18 @@ export default function PhotoViewerModal({
     const [localLikedPhotos, setLocalLikedPhotos] = useState<Record<string, boolean>>({});
     const flatListRef = useRef<FlatList>(null);
     const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        if (Platform.OS === 'android') {
+            if (isVisible) {
+                NavigationBar.setVisibilityAsync('hidden');
+            } else {
+                // Return visibility ONLY if we are closing the viewer and camera is NOT visible
+                // But since CameraModal also handles this, it's safer to just set it to visible when closing
+                NavigationBar.setVisibilityAsync('visible');
+            }
+        }
+    }, [isVisible]);
 
     // Sync initial index when modal opens
     useEffect(() => {
@@ -163,7 +178,9 @@ export default function PhotoViewerModal({
     // Handle Scroll
     const onMomentumScrollEnd = (e: any) => {
         const newIndex = Math.round(e.nativeEvent.contentOffset.x / width);
-        setCurrentIndex(newIndex);
+        if (newIndex >= 0 && newIndex < photos.length) {
+            setCurrentIndex(newIndex);
+        }
     };
 
     // Actions
@@ -407,9 +424,13 @@ export default function PhotoViewerModal({
                         <Ionicons name="chevron-back" size={24} color="#FFF" />
                     </TouchableOpacity>
                     <Text style={styles.counterText}>{currentIndex + 1} / {photos.length}</Text>
-                    <TouchableOpacity style={styles.iconButton} onPress={handleInfo}>
-                        <Ionicons name="ellipsis-horizontal" size={24} color="#FFF" />
-                    </TouchableOpacity>
+                    {showExtraActions ? (
+                        <TouchableOpacity style={styles.iconButton} onPress={handleInfo}>
+                            <Ionicons name="ellipsis-horizontal" size={24} color="#FFF" />
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={{ width: 40 }} />
+                    )}
                 </View>
 
                 {/* Main Content */}
@@ -432,10 +453,17 @@ export default function PhotoViewerModal({
                 />
 
                 {/* Bottom Action Bar */}
-                <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 20) + 10 }]}>
+                <View style={[
+                    styles.bottomBar,
+                    { paddingBottom: Math.max(insets.bottom, 30) + 15 },
+                    !showExtraActions && { justifyContent: 'flex-end' }
+                ]}>
 
 
-                    <TouchableOpacity style={styles.actionItem} onPress={handleSave}>
+                    <TouchableOpacity
+                        style={[styles.actionItem, !showExtraActions && { marginRight: 25 }]}
+                        onPress={handleSave}
+                    >
                         <View style={styles.actionIconCircle}>
                             {isSaving ? (
                                 <ActivityIndicator size="small" color="#FFF" />
@@ -446,23 +474,27 @@ export default function PhotoViewerModal({
                         <Text style={styles.actionText}>{t('action_save')}</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.actionItem} onPress={handleToggleLike}>
-                        <View style={styles.actionIconCircle}>
-                            <Ionicons
-                                name={isLiked ? "heart" : "heart-outline"}
-                                size={22}
-                                color={isLiked ? "#FF3B30" : "#FFF"}
-                            />
-                        </View>
-                        <Text style={styles.actionText}>{isLiked ? t('action_unlike' as any) : t('action_like' as any)}</Text>
-                    </TouchableOpacity>
+                    {showExtraActions && (
+                        <>
+                            <TouchableOpacity style={styles.actionItem} onPress={handleToggleLike}>
+                                <View style={styles.actionIconCircle}>
+                                    <Ionicons
+                                        name={isLiked ? "heart" : "heart-outline"}
+                                        size={22}
+                                        color={isLiked ? "#FF3B30" : "#FFF"}
+                                    />
+                                </View>
+                                <Text style={styles.actionText}>{isLiked ? t('action_unlike' as any) : t('action_like' as any)}</Text>
+                            </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.actionItem} onPress={handleInfo}>
-                        <View style={styles.actionIconCircle}>
-                            <Ionicons name="information-circle-outline" size={20} color="#FFF" />
-                        </View>
-                        <Text style={styles.actionText}>{t('action_details')}</Text>
-                    </TouchableOpacity>
+                            <TouchableOpacity style={styles.actionItem} onPress={handleInfo}>
+                                <View style={styles.actionIconCircle}>
+                                    <Ionicons name="information-circle-outline" size={20} color="#FFF" />
+                                </View>
+                                <Text style={styles.actionText}>{t('action_details')}</Text>
+                            </TouchableOpacity>
+                        </>
+                    )}
 
                     <TouchableOpacity style={styles.actionItem} onPress={handleDelete}>
                         <View style={styles.actionIconCircle}>
