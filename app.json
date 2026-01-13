@@ -2,7 +2,7 @@
   "expo": {
     "name": "iLoveGallery",
     "slug": "ilovegallery",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ilra",
@@ -16,14 +16,14 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ilovegallery.app.v2",
-      "buildNumber": "7",
+      "buildNumber": "8",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.ilovegallery.app",
-      "versionCode": 7,
+      "versionCode": 12,
       "icon": "./assets/images/android-icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/android-icon.png",
@@ -61,7 +61,8 @@
           "photosPermission": "Permite que iLoveGallery acceda a tus fotos para elegir una portada.",
           "cameraPermission": "Permite que iLoveGallery use tu cámara para tomar fotos del evento."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true

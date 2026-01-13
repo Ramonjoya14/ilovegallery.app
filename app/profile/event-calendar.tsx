@@ -331,7 +331,7 @@ export default function EventCalendarScreen() {
                     />
                     <View style={styles.footerBrand}>
                         <View style={styles.brandDot} />
-                        <Text style={styles.brandText}>INSTAROLL MEMORIES</Text>
+                        <Text style={styles.brandText}>ILOVEGALLERY MEMORIES</Text>
                         <View style={styles.brandDot} />
                     </View>
                     <Text style={styles.footerYear}>{new Date().getFullYear()}</Text>

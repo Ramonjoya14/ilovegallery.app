@@ -10,7 +10,7 @@ import { useAuth } from '@/context/AuthContext';
 import { databaseService, Event as EventType, Photo } from '@/services/database';
 import { storageService } from '@/services/storage';
 import { FontAwesome, Ionicons } from '@expo/vector-icons';
-import { ResizeMode, Video } from 'expo-av';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -50,6 +50,8 @@ export default function EventDetailScreen() {
     const [participants, setParticipants] = useState<{ uid: string; displayName: string; photoURL: string | null }[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
     const [sessionHistory, setSessionHistory] = useState<Photo[]>([]);
+    const [showTimePicker, setShowTimePicker] = useState(false);
+    const [tempDate, setTempDate] = useState(new Date());
 
     const isOrganizer = user && event && user.uid === event.organizerId;
 
@@ -152,10 +154,7 @@ export default function EventDetailScreen() {
             showAlert({ title: t('finished'), message: t('error_event_finished'), type: 'warning' });
             return;
         }
-        if ((event.photoCount || 0) + pendingPhotos.length >= event.maxPhotos) {
-            showAlert({ title: t('roll_complete_title'), message: t('roll_complete_msg'), type: 'warning' });
-            return;
-        }
+
         setIsCameraVisible(true);
     };
 
@@ -177,9 +176,14 @@ export default function EventDetailScreen() {
 
         setPendingPhotos(prev => [...newPendingPhotos, ...prev]);
 
-        // Process uploads in sequence to avoid overwhelming memory and network
-        for (const photo of newPendingPhotos) {
-            await processSingleUpload(photo.url, photo.type as 'image' | 'video', photo.id!);
+        // Process uploads in parallel for speed
+        // We split into chunks of 5 to avoid overwhelming the network/device if 24 items are selected
+        const chunkSize = 5;
+        for (let i = 0; i < newPendingPhotos.length; i += chunkSize) {
+            const chunk = newPendingPhotos.slice(i, i + chunkSize);
+            await Promise.all(chunk.map(photo =>
+                processSingleUpload(photo.url, photo.type as 'image' | 'video', photo.id!)
+            ));
         }
 
         if (isBatch) {
@@ -276,7 +280,8 @@ export default function EventDetailScreen() {
                             // For now, we await it but catch errors locally
                             for (const photo of photoData) {
                                 try {
-                                    const localUri = (FileSystem.cacheDirectory || FileSystem.documentDirectory || '') + `${photo.id}.jpg`;
+                                    const ext = photo.type === 'video' ? 'mp4' : 'jpg';
+                                    const localUri = (FileSystem.cacheDirectory || FileSystem.documentDirectory || '') + `${photo.id}.${ext}`;
                                     await FileSystem.downloadAsync(photo.url, localUri);
                                     await MediaLibrary.saveToLibraryAsync(localUri);
                                 } catch (e) {
@@ -443,6 +448,39 @@ export default function EventDetailScreen() {
         }
     };
 
+    const handleOpenTimePicker = () => {
+        if (!isOrganizer) return;
+        setTempDate(getEventDate());
+        setShowTimePicker(true);
+    };
+
+    const saveNewTime = async (newTime: Date) => {
+        const currentDate = getEventDate();
+        const newDate = new Date(currentDate);
+        newDate.setHours(newTime.getHours());
+        newDate.setMinutes(newTime.getMinutes());
+        newDate.setSeconds(0);
+
+        try {
+            // Optimistic update
+            setEvent(prev => prev ? { ...prev, date: newDate } : null);
+            await databaseService.updateEventDate(id as string, newDate);
+            // No alert needed for success to keep it smooth, or maybe a small toast?
+        } catch (error) {
+            console.error("Error updating time:", error);
+            showAlert({ title: t('alert_error'), message: t('error_save_generic'), type: 'error' });
+            // Revert if needed (fetch details)
+            fetchEventDetails(true);
+        }
+    };
+
+    const onAndroidTimeChange = (event: any, selectedDate?: Date) => {
+        setShowTimePicker(false);
+        if (event.type === 'set' && selectedDate) {
+            saveNewTime(selectedDate);
+        }
+    };
+
     if (loading) {
         return (
             <View style={[styles.container, styles.center, { backgroundColor: theme.background }]}>
@@ -480,8 +518,6 @@ export default function EventDetailScreen() {
                     <Image
                         source={{ uri: event.coverImage }}
                         style={styles.coverImage}
-                        contentFit="cover"
-                        transition={200}
                         cachePolicy="disk"
                     />
                 ) : (
@@ -590,7 +626,11 @@ export default function EventDetailScreen() {
                                 <Text style={[styles.infoValue, { color: theme.text }]}>{formattedDate}</Text>
                             </View>
                         </View>
-                        <View style={styles.infoCard}>
+                        <TouchableOpacity
+                            style={styles.infoCard}
+                            onPress={handleOpenTimePicker}
+                            activeOpacity={isOrganizer ? 0.7 : 1}
+                        >
                             <View style={[styles.infoIconBg, { backgroundColor: theme.background }]}>
                                 <FontAwesome name="clock-o" size={12} color={theme.tint} />
                             </View>
@@ -598,7 +638,12 @@ export default function EventDetailScreen() {
                                 <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>{t('time_label')}</Text>
                                 <Text style={[styles.infoValue, { color: theme.text }]}>{formattedTime}</Text>
                             </View>
-                        </View>
+                            {isOrganizer && (
+                                <View style={{ position: 'absolute', right: 10, top: 10, opacity: 0.5 }}>
+                                    <FontAwesome name="pencil" size={10} color={theme.textSecondary} />
+                                </View>
+                            )}
+                        </TouchableOpacity>
                     </View>
                     <View style={[styles.infoGrid, { marginTop: 10 }]}>
                         <View style={styles.infoCard}>
@@ -708,23 +753,13 @@ export default function EventDetailScreen() {
                             >
                                 {isRevealed ? (
                                     <>
-                                        {photo.type === 'video' ? (
-                                            <Video
-                                                source={{ uri: photo.url }}
-                                                style={styles.photo}
-                                                resizeMode={ResizeMode.COVER}
-                                                shouldPlay={false}
-                                                isMuted
-                                            />
-                                        ) : (
-                                            <Image
-                                                source={{ uri: photo.url }}
-                                                style={[styles.photo, isPending && { opacity: 0.6 }]}
-                                                contentFit="cover"
-                                                transition={200}
-                                                cachePolicy="disk"
-                                            />
-                                        )}
+                                        <Image
+                                            source={{ uri: photo.url }}
+                                            style={[styles.photo, isPending && { opacity: 0.6 }]}
+                                            contentFit="cover"
+                                            transition={200}
+                                            cachePolicy="disk"
+                                        />
                                         {photo.type === 'video' && (
                                             <View style={styles.videoIndicator}>
                                                 <FontAwesome name="play" size={10} color="#FFF" />
@@ -797,6 +832,58 @@ export default function EventDetailScreen() {
                 onDeletePhoto={handleDeletePhoto}
                 eventName={event.name}
             />
+
+            {/* iOS Time Picker Modal */}
+            {Platform.OS === 'ios' && showTimePicker && (
+                <Modal
+                    transparent
+                    animationType="fade"
+                    visible={showTimePicker}
+                    onRequestClose={() => setShowTimePicker(false)}
+                >
+                    <TouchableOpacity
+                        style={styles.modalOverlay}
+                        activeOpacity={1}
+                        onPress={() => setShowTimePicker(false)}
+                    >
+                        <View style={[styles.menuContent, { backgroundColor: theme.card, padding: 20, width: '90%', borderRadius: 25, alignItems: 'center' }]}>
+                            <Text style={{ fontSize: 18, fontWeight: 'bold', color: theme.text, marginBottom: 15 }}>{t('time_label')}</Text>
+                            <DateTimePicker
+                                value={tempDate}
+                                mode="time"
+                                display="spinner"
+                                onChange={(_, date) => date && setTempDate(date)}
+                                textColor={theme.text}
+                                style={{ width: '100%', height: 150 }}
+                            />
+                            <View style={{ flexDirection: 'row', marginTop: 20, width: '100%', justifyContent: 'space-between' }}>
+                                <TouchableOpacity
+                                    onPress={() => setShowTimePicker(false)}
+                                    style={{ padding: 15, flex: 1, alignItems: 'center' }}
+                                >
+                                    <Text style={{ color: theme.textSecondary }}>{t('cancel')}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={() => { setShowTimePicker(false); saveNewTime(tempDate); }}
+                                    style={{ padding: 15, flex: 1, alignItems: 'center', backgroundColor: theme.tint, borderRadius: 15 }}
+                                >
+                                    <Text style={{ color: '#FFF', fontWeight: 'bold' }}>{language === 'es' ? 'Guardar' : 'Save'}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </TouchableOpacity>
+                </Modal>
+            )}
+
+            {/* Android Time Picker */}
+            {Platform.OS === 'android' && showTimePicker && (
+                <DateTimePicker
+                    value={tempDate}
+                    mode="time"
+                    display="default"
+                    onChange={onAndroidTimeChange}
+                />
+            )}
             <PhotoViewerModal
                 isVisible={viewerVisible}
                 onClose={() => setViewerVisible(false)}

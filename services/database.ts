@@ -365,6 +365,17 @@ export const databaseService = {
         }
     },
 
+    async updateEventDate(eventId: string, date: Date) {
+        try {
+            const eventRef = doc(db, 'events', eventId);
+            await setDoc(eventRef, { date }, { merge: true });
+            return true;
+        } catch (error) {
+            console.error("Error updating event date: ", error);
+            throw error;
+        }
+    },
+
     async toggleEventArchive(eventId: string, isArchived: boolean) {
         try {
             const eventRef = doc(db, 'events', eventId);

@@ -49,28 +49,55 @@ const { width, height } = Dimensions.get('window');
 
 const MediaItem = React.memo(({ item, isFocused }: { item: Photo, isFocused: boolean }) => {
     const { width, height } = Dimensions.get('window');
+
     const [isLoading, setIsLoading] = useState(true);
     const [hasError, setHasError] = useState(false);
     const [retryKey, setRetryKey] = useState(0);
+    const [isBuffering, setIsBuffering] = useState(false);
+    const [localSource, setLocalSource] = useState<string | null>(null);
 
     useEffect(() => {
         setIsLoading(true);
         setHasError(false);
+        setIsBuffering(false);
+        setLocalSource(null);
+
+        // Check for cached version first
+        const checkCache = async () => {
+            if (item.id) {
+                const ext = item.type === 'video' ? 'mp4' : 'jpg';
+                const cacheUri = `${FileSystem.cacheDirectory}network-cache-${item.id}.${ext}`;
+                const info = await FileSystem.getInfoAsync(cacheUri);
+                if (info.exists) {
+                    setLocalSource(cacheUri);
+                    // Only applicable if we decided to pre-download everything, which we don't for now.
+                    // But if it was downloaded by "Save Roll", we might find it if we knew the path.
+                    // For now, let's trust expo-av's own caching or just rely on buffering UI.
+                }
+            }
+        };
+        // checkCache(); // Disabled for now as we don't strictly cache every view.
     }, [item.url, item.type, retryKey]);
 
     const handleRetry = () => {
         setRetryKey(prev => prev + 1);
+        setHasError(false);
+        setIsLoading(true);
     };
 
     if (item.type === 'video') {
         return (
             <View style={[styles.mediaContainer, { width, height }]}>
-                {isLoading && (
-                    <ActivityIndicator size="large" color="#FFF" style={StyleSheet.absoluteFill} />
+                {(isLoading || isBuffering) && (
+                    <ActivityIndicator
+                        size="large"
+                        color="#FFF"
+                        style={[StyleSheet.absoluteFill, { zIndex: 10 }]}
+                    />
                 )}
                 <Video
                     key={`${item.url}-${retryKey}`}
-                    source={{ uri: item.url }}
+                    source={{ uri: localSource || item.url }}
                     style={styles.media}
                     resizeMode={ResizeMode.CONTAIN}
                     shouldPlay={isFocused}
@@ -78,13 +105,24 @@ const MediaItem = React.memo(({ item, isFocused }: { item: Photo, isFocused: boo
                     isLooping
                     onLoadStart={() => setIsLoading(true)}
                     onLoad={() => setIsLoading(false)}
-                    onError={() => { setIsLoading(false); setHasError(true); }}
+                    onError={(error) => {
+                        console.error("Video load error:", error);
+                        setIsLoading(false);
+                        setHasError(true);
+                    }}
+                    onPlaybackStatusUpdate={status => {
+                        if (!status.isLoaded) return;
+                        setIsBuffering(status.isBuffering);
+                        if (status.isBuffering || status.isPlaying) {
+                            setIsLoading(false);
+                        }
+                    }}
                 />
                 {hasError && (
-                    <View style={StyleSheet.absoluteFillObject}>
-                        <Ionicons name="alert-circle" size={50} color="#FF6B00" style={{ alignSelf: 'center', top: '45%' }} />
-                        <Text style={{ color: '#FFF', textAlign: 'center', top: '45%' }}>Error loading video</Text>
-                        <TouchableOpacity onPress={handleRetry} style={{ alignSelf: 'center', top: '50%', padding: 10 }}>
+                    <View style={[StyleSheet.absoluteFillObject, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+                        <Ionicons name="alert-circle" size={50} color="#FF6B00" />
+                        <Text style={{ color: '#FFF', textAlign: 'center', marginTop: 10 }}>Error loading video</Text>
+                        <TouchableOpacity onPress={handleRetry} style={{ marginTop: 20, backgroundColor: '#333', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 20 }}>
                             <Text style={{ color: '#FF6B00', fontWeight: 'bold' }}>Retry</Text>
                         </TouchableOpacity>
                     </View>
@@ -159,19 +197,23 @@ export default function PhotoViewerModal({
     useEffect(() => {
         if (isVisible && photos.length > 0) {
             setCurrentIndex(initialIndex);
-            // Initialize local likes map from photos prop
-            const likesMap: Record<string, boolean> = {};
-            photos.forEach(p => {
-                if (p.id) likesMap[p.id] = p.isLiked || false;
-            });
-            setLocalLikedPhotos(likesMap);
-
             // Small timeout to allow layout to settle before scrolling
             setTimeout(() => {
                 flatListRef.current?.scrollToIndex({ index: initialIndex, animated: false });
             }, 100);
         }
-    }, [isVisible, initialIndex, photos]);
+    }, [isVisible]);
+
+    // Sync local likes map when photos prop changes
+    useEffect(() => {
+        if (photos.length > 0) {
+            const likesMap: Record<string, boolean> = {};
+            photos.forEach(p => {
+                if (p.id) likesMap[p.id] = p.isLiked || false;
+            });
+            setLocalLikedPhotos(likesMap);
+        }
+    }, [photos]);
 
     const currentPhoto = photos[currentIndex];
 
@@ -515,69 +557,66 @@ const styles = StyleSheet.create({
     },
     header: {
         position: 'absolute',
-        top: 0,
+        top: Platform.OS === 'ios' ? 50 : 30,
         left: 0,
         right: 0,
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
-        paddingBottom: 15,
-        backgroundColor: '#000',
+        zIndex: 10,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: 20,
-        zIndex: 10,
     },
     iconButton: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: 'rgba(0,0,0,0.5)', // slightly visible bg for better tap target
+        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center',
     },
     counterText: {
         color: '#FFF',
-        fontSize: 14,
-        fontWeight: '600',
+        fontSize: 16,
+        fontWeight: 'bold',
     },
     mediaContainer: {
-        width: width,
-        height: height,
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: '#000',
     },
     media: {
         width: '100%',
-        height: '80%', // Leave space for header/footer
+        height: '100%',
+        backgroundColor: '#000',
     },
-    // infoOverlay styles removed
     bottomBar: {
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        paddingBottom: Platform.OS === 'ios' ? 40 : 25,
-        paddingTop: 20,
-        paddingHorizontal: 20,
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        backgroundColor: '#000',
+        justifyContent: 'space-around',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        paddingTop: 15,
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
     },
     actionItem: {
         alignItems: 'center',
     },
     actionIconCircle: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: '#1C1C1E', // Darker circle background
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: 'rgba(255,255,255,0.1)',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 6,
+        marginBottom: 5,
     },
     actionText: {
-        color: '#8E8E93',
+        color: '#FFF',
         fontSize: 10,
+        opacity: 0.8,
     },
 });

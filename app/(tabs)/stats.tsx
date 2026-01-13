@@ -61,16 +61,20 @@ export default function StatsScreen() {
                     const d = p.timestamp.toDate ? p.timestamp.toDate() : new Date(p.timestamp);
                     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
                 });
-            } else if (range === 'time_year') {
+            } else if (range === 'time_today') {
                 filteredEvents = allEvents.filter(e => {
                     if (!e.date) return false;
                     const d = e.date.toDate ? e.date.toDate() : new Date(e.date);
-                    return d.getFullYear() === now.getFullYear();
+                    return d.getDate() === now.getDate() &&
+                        d.getMonth() === now.getMonth() &&
+                        d.getFullYear() === now.getFullYear();
                 });
                 filteredPhotos = allPhotos.filter(p => {
                     if (!p.timestamp) return false;
                     const d = p.timestamp.toDate ? p.timestamp.toDate() : new Date(p.timestamp);
-                    return d.getFullYear() === now.getFullYear();
+                    return d.getDate() === now.getDate() &&
+                        d.getMonth() === now.getMonth() &&
+                        d.getFullYear() === now.getFullYear();
                 });
             }
 
@@ -107,38 +111,44 @@ export default function StatsScreen() {
             // I will preserve the original logic for the *Chart* to ensure it doesn't break, 
             // but the *Summary Numbers* above it will now be filtered.
 
+            // Chart Calculation (Monthly Activity: Photos + Events)
             const currentMonth = now.getMonth();
             const currentYear = now.getFullYear();
-
             const activity = [0, 0, 0, 0];
-            let currentWeekPhotos = 0;
-            let lastWeekPhotos = 0;
-            const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-            const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-            // Note: We use allPhotos for the activity chart to show 'current status' regardless of filter?
-            // Or should the chart reflect the filter? 
-            // If filter is 'Year', a 4-week chart is meaningless. 
-            // Let's use 'allPhotos' for the Reference Chart (Monthly Activity) to keep it consistent 
-            // as a "Dashboard" widget, while the Stats Cards reflect the specific filter.
-
-            allPhotos.forEach(photo => {
-                const date = photo.timestamp?.toDate ? photo.timestamp.toDate() : new Date(photo.timestamp);
-
-                // Monthly Chart (Always Current Month for the UI widget)
+            // Helper to add activity
+            const addActivity = (dateObj: any) => {
+                const date = dateObj?.toDate ? dateObj.toDate() : new Date(dateObj);
                 if (date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
                     const day = date.getDate();
                     const week = Math.min(Math.floor((day - 1) / 7), 3);
                     activity[week]++;
                 }
+            };
 
-                // Growth calc
-                if (date > sevenDaysAgo) currentWeekPhotos++;
-                else if (date > fourteenDaysAgo) lastWeekPhotos++;
-            });
+            allPhotos.forEach(photo => addActivity(photo.timestamp));
+            allEvents.forEach(event => addActivity(event.date));
+
             setWeeklyActivity(activity);
 
-            const growthVal = lastWeekPhotos === 0 ? (currentWeekPhotos > 0 ? 100 : 0) : Math.round(((currentWeekPhotos - lastWeekPhotos) / lastWeekPhotos) * 100);
+            // Growth calculation (Recent Trend: Photos + Events)
+            // Re-using the previous recent activity logic for the growth % indicator:
+            // We reuse 'now' from above
+            const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+            let currentWeekCount = 0;
+            let lastWeekCount = 0;
+
+            const checkGrowth = (dateObj: any) => {
+                const date = dateObj?.toDate ? dateObj.toDate() : new Date(dateObj);
+                if (date > sevenDaysAgo) currentWeekCount++;
+                else if (date > fourteenDaysAgo && date <= sevenDaysAgo) lastWeekCount++;
+            };
+
+            allPhotos.forEach(photo => checkGrowth(photo.timestamp));
+            allEvents.forEach(event => checkGrowth(event.date));
+
+            const growthVal = lastWeekCount === 0 ? (currentWeekCount > 0 ? 100 : 0) : Math.round(((currentWeekCount - lastWeekCount) / lastWeekCount) * 100);
             setGrowth(growthVal);
 
             // Best Memories: Sort FILTERED events by user interaction
@@ -212,13 +222,15 @@ export default function StatsScreen() {
 
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
                 <View style={[styles.chipsRow, { backgroundColor: theme.card }]}>
-                    {(['time_all', 'time_year', 'time_month'] as const).map(c => (
+                    {(['time_all', 'time_month', 'time_today'] as const).map(c => (
                         <TouchableOpacity
                             key={c}
                             style={[styles.chip, range === c && { backgroundColor: theme.tint }]}
                             onPress={() => setRange(c)}
                         >
-                            <Text style={[styles.chipText, { color: theme.textSecondary }, range === c && styles.activeChipText]}>{t(c)}</Text>
+                            <Text style={[styles.chipText, { color: theme.textSecondary }, range === c && styles.activeChipText]}>
+                                {c === 'time_today' ? (language === 'es' ? 'Hoy' : 'Today') : t(c as any)}
+                            </Text>
                         </TouchableOpacity>
                     ))}
                 </View>
@@ -277,7 +289,12 @@ export default function StatsScreen() {
 
                 {/* Chart Area */}
                 <View style={[styles.sectionHeader, { marginTop: 10 }]}>
-                    <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('stats_monthly_activity')}</Text>
+                    <View>
+                        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('stats_monthly_activity')}</Text>
+                        <Text style={{ fontSize: 12, color: theme.textSecondary, fontWeight: '600', textTransform: 'uppercase', marginTop: -2 }}>
+                            {new Date().toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', { month: 'long', year: 'numeric' })}
+                        </Text>
+                    </View>
                     <Text style={[styles.growthText, { color: theme.tint }]}>
                         {growth >= 0 ? "+" : ""}{growth}% <FontAwesome name={growth >= 0 ? "caret-up" : "caret-down"} size={14} />
                     </Text>

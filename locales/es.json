@@ -1,0 +1,6 @@
+{
+    "NSCameraUsageDescription": "Permite que iLoveGallery use tu cámara para tomar fotos del evento.",
+    "NSPhotoLibraryUsageDescription": "Permite que iLoveGallery acceda a tus fotos para elegir una portada.",
+    "NSPhotoLibraryAddUsageDescription": "Permite que iLoveGallery guarde las fotos tomadas en tu galería.",
+    "NSMicrophoneUsageDescription": "Permite que iLoveGallery use tu micrófono para grabar audio en los videos."
+}
