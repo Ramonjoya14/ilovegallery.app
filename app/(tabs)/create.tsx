@@ -100,7 +100,7 @@ export default function CreateEventScreen() {
             return;
         }
 
-        if (hasPin && (!pin || pin.length < 4)) {
+        if (hasPin && (!pin || pin.length < 6)) {
             showAlert({
                 title: t('alert_error'),
                 message: t('error_pin_required'),
@@ -381,9 +381,9 @@ export default function CreateEventScreen() {
                         <View style={[styles.pinInputContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
                             <TextInput
                                 style={[styles.pinInput, { color: theme.text }]}
-                                placeholder="0  0  0  0"
+                                placeholder="0  0  0  0  0  0"
                                 placeholderTextColor={theme.textSecondary}
-                                maxLength={4}
+                                maxLength={6}
                                 keyboardType="number-pad"
                                 secureTextEntry
                                 value={pin}

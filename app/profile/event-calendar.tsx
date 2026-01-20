@@ -160,34 +160,34 @@ export default function EventCalendarScreen() {
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
             <LinearGradient
-                colors={['#251A14', '#120D0A', '#120D0A']}
+                colors={isDark ? ['#251A14', '#120D0A', '#120D0A'] : [theme.background, theme.background, theme.background]}
                 style={StyleSheet.absoluteFill}
             />
 
             {/* Custom Premium Header */}
             <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) }]}>
                 <TouchableOpacity
-                    style={[styles.headerBtn, { backgroundColor: 'rgba(255,255,255,0.05)' }]}
+                    style={[styles.headerBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}
                     onPress={() => router.back()}
                 >
-                    <Ionicons name="close" size={24} color="#FFF" />
+                    <Ionicons name="close" size={24} color={theme.text} />
                 </TouchableOpacity>
                 <View style={styles.headerTitleContainer}>
-                    <Text style={styles.headerTitle}>
+                    <Text style={[styles.headerTitle, { color: theme.text }]}>
                         {language === 'es' ? 'Tu Historia' : 'Your History'}
                     </Text>
                     <View style={styles.headerStatus}>
                         <View style={[styles.statusDot, { backgroundColor: theme.tint }]} />
-                        <Text style={styles.headerSubtitle}>
+                        <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
                             {events.length} {language === 'es' ? 'momentos' : 'moments'}
                         </Text>
                     </View>
                 </View>
                 <TouchableOpacity
-                    style={[styles.headerBtn, { backgroundColor: 'rgba(255,255,255,0.05)' }]}
+                    style={[styles.headerBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}
                     onPress={fetchEvents}
                 >
-                    <Ionicons name="sync" size={18} color="#FFF" />
+                    <Ionicons name="sync" size={18} color={theme.text} />
                 </TouchableOpacity>
             </View>
 
@@ -197,25 +197,25 @@ export default function EventCalendarScreen() {
             >
                 {/* Month Selector */}
                 <View style={styles.monthSelectorWrapper}>
-                    <BlurView intensity={30} tint="dark" style={[styles.calendarHeader, { borderColor: 'rgba(255,107,0,0.2)' }]}>
+                    <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={[styles.calendarHeader, { borderColor: theme.border }]}>
                         <TouchableOpacity onPress={() => changeMonth(-1)} style={styles.monthNavBtn}>
-                            <Ionicons name="chevron-back" size={20} color="#FFF" />
+                            <Ionicons name="chevron-back" size={20} color={theme.text} />
                         </TouchableOpacity>
-                        <Text style={[styles.monthDisplay, { color: '#FFF' }]}>
+                        <Text style={[styles.monthDisplay, { color: theme.text }]}>
                             {viewDate.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', { month: 'long', year: 'numeric' }).toUpperCase()}
                         </Text>
                         <TouchableOpacity onPress={() => changeMonth(1)} style={styles.monthNavBtn}>
-                            <Ionicons name="chevron-forward" size={20} color="#FFF" />
+                            <Ionicons name="chevron-forward" size={20} color={theme.text} />
                         </TouchableOpacity>
                     </BlurView>
                 </View>
 
                 {/* Calendar Card */}
                 <View style={styles.calendarContainer}>
-                    <BlurView intensity={15} tint="dark" style={[styles.calendarCard, { borderColor: 'rgba(255,255,255,0.1)' }]}>
+                    <BlurView intensity={15} tint={isDark ? "dark" : "light"} style={[styles.calendarCard, { borderColor: theme.border }]}>
                         <View style={styles.weekdaysRow}>
                             {(language === 'es' ? ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']).map((day, i) => (
-                                <Text key={i} style={[styles.weekdayText, { color: '#8E8E93' }]}>{day}</Text>
+                                <Text key={i} style={[styles.weekdayText, { color: theme.textSecondary }]}>{day}</Text>
                             ))}
                         </View>
 
@@ -227,16 +227,16 @@ export default function EventCalendarScreen() {
 
                 {/* Events Section Decoration */}
                 <View style={styles.sectionDivider}>
-                    <View style={[styles.dividerLine, { backgroundColor: 'rgba(255,255,255,0.05)' }]} />
+                    <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
                     <Ionicons name="sparkles" size={14} color={theme.tint} style={styles.dividerIcon} />
-                    <View style={[styles.dividerLine, { backgroundColor: 'rgba(255,255,255,0.05)' }]} />
+                    <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
                 </View>
 
                 {/* Events for selected day */}
                 <View style={styles.resultsContainer}>
                     <View style={styles.selectedDayHeader}>
                         <View style={styles.selectedDayTitleLine}>
-                            <Text style={[styles.selectedDayTitle, { color: '#FFF' }]}>
+                            <Text style={[styles.selectedDayTitle, { color: theme.text }]}>
                                 {selectedDate.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', { day: 'numeric', month: 'long' })}
                             </Text>
                             {selectedDayEvents.length > 0 && (
@@ -247,7 +247,7 @@ export default function EventCalendarScreen() {
                                 </View>
                             )}
                         </View>
-                        <Text style={[styles.selectedDaySubtitle, { color: '#8E8E93' }]}>
+                        <Text style={[styles.selectedDaySubtitle, { color: theme.textSecondary }]}>
                             {selectedDayEvents.length > 0
                                 ? (language === 'es' ? 'Momentos destacados de este día' : 'Highlights from this day')
                                 : (language === 'es' ? 'Sin recuerdos este día' : 'No memories this day')
@@ -271,12 +271,12 @@ export default function EventCalendarScreen() {
                                 <TouchableOpacity
                                     key={event.id}
                                     activeOpacity={0.9}
-                                    style={[styles.smallEventCard, { borderColor: 'rgba(255,255,255,0.1)' }]}
+                                    style={[styles.smallEventCard, { borderColor: theme.border, backgroundColor: theme.card }]}
                                     onPress={() => router.push(`/event/${event.id}`)}
                                 >
                                     <View style={styles.smallImageContainer}>
                                         {event.pin && event.pin.trim() !== '' ? (
-                                            <View style={[styles.smallImage, { backgroundColor: '#1E1915', justifyContent: 'center', alignItems: 'center' }]}>
+                                            <View style={[styles.smallImage, { backgroundColor: theme.card, justifyContent: 'center', alignItems: 'center' }]}>
                                                 <FontAwesome name="lock" size={26} color={theme.tint} />
                                                 <Text style={styles.privateText}>{language === 'es' ? 'PRIVADO' : 'PRIVATE'}</Text>
                                             </View>
@@ -298,12 +298,12 @@ export default function EventCalendarScreen() {
                                         </View>
                                     </View>
                                     <View style={styles.smallInfo}>
-                                        <Text style={styles.smallName} numberOfLines={1}>
+                                        <Text style={[styles.smallName, { color: theme.text }]} numberOfLines={1}>
                                             {event.name}
                                         </Text>
                                         <View style={styles.smallLocationRow}>
                                             <Ionicons name="location" size={10} color={theme.tint} />
-                                            <Text style={styles.smallLocation} numberOfLines={1}>
+                                            <Text style={[styles.smallLocation, { color: theme.textSecondary }]} numberOfLines={1}>
                                                 {event.location || (language === 'es' ? 'Explorando' : 'Exploring')}
                                             </Text>
                                         </View>
@@ -313,10 +313,10 @@ export default function EventCalendarScreen() {
                         </ScrollView>
                     ) : (
                         <View style={styles.emptyContainer}>
-                            <View style={[styles.emptyIconCircle, { backgroundColor: 'rgba(255,255,255,0.03)' }]}>
-                                <Ionicons name="calendar-outline" size={32} color="rgba(255,255,255,0.1)" />
+                            <View style={[styles.emptyIconCircle, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }]}>
+                                <Ionicons name="calendar-outline" size={32} color={theme.textSecondary} />
                             </View>
-                            <Text style={styles.emptyText}>
+                            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
                                 {language === 'es' ? 'No hay eventos en esta fecha.\n¡Sigue capturando momentos!' : 'No events on this date.\nKeep capturing moments!'}
                             </Text>
                         </View>
@@ -326,15 +326,15 @@ export default function EventCalendarScreen() {
                 {/* Footer Section - Design Polish */}
                 <View style={styles.footerSpacing}>
                     <LinearGradient
-                        colors={['rgba(255,107,0,0.05)', 'transparent']}
+                        colors={[isDark ? 'rgba(255,107,0,0.05)' : 'rgba(255,107,0,0.02)', 'transparent']}
                         style={styles.footerGradient}
                     />
                     <View style={styles.footerBrand}>
                         <View style={styles.brandDot} />
-                        <Text style={styles.brandText}>ILOVEGALLERY MEMORIES</Text>
+                        <Text style={[styles.brandText, { color: theme.textSecondary, opacity: 0.5 }]}>ILOVEGALLERY MEMORIES</Text>
                         <View style={styles.brandDot} />
                     </View>
-                    <Text style={styles.footerYear}>{new Date().getFullYear()}</Text>
+                    <Text style={[styles.footerYear, { color: theme.textSecondary }]}>{new Date().getFullYear()}</Text>
                 </View>
             </ScrollView>
         </View>

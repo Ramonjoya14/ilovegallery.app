@@ -24,7 +24,7 @@ export default function SetPinModal({ isVisible, onSuccess, onClose }: SetPinMod
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        if (pin.length === 4) {
+        if (pin.length === 6) {
             handleComplete();
         }
     }, [pin]);
@@ -39,7 +39,7 @@ export default function SetPinModal({ isVisible, onSuccess, onClose }: SetPinMod
     };
 
     const handleNumberPress = (num: string) => {
-        if (pin.length < 4) {
+        if (pin.length < 6) {
             setPin(prev => prev + num);
         }
     };
@@ -93,7 +93,7 @@ export default function SetPinModal({ isVisible, onSuccess, onClose }: SetPinMod
                     </Text>
 
                     <View style={styles.dotsContainer}>
-                        {[0, 1, 2, 3].map(renderDot)}
+                        {[0, 1, 2, 3, 4, 5].map(renderDot)}
                     </View>
 
                     {loading && (

@@ -27,7 +27,7 @@ export default function PinModal({ isVisible, correctPin, onSuccess, onClose }: 
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        if (pin.length === 4) {
+        if (pin.length === 6) {
             handleVerify();
         }
     }, [pin]);
@@ -49,7 +49,7 @@ export default function PinModal({ isVisible, correctPin, onSuccess, onClose }: 
     };
 
     const handleNumberPress = (num: string) => {
-        if (pin.length < 4) {
+        if (pin.length < 6) {
             setPin(prev => prev + num);
         }
     };
@@ -101,7 +101,7 @@ export default function PinModal({ isVisible, correctPin, onSuccess, onClose }: 
                     <Text style={styles.subtitle}>{t('event_private_subtitle')}</Text>
 
                     <View style={styles.dotsContainer}>
-                        {[0, 1, 2, 3].map(renderDot)}
+                        {[0, 1, 2, 3, 4, 5].map(renderDot)}
                     </View>
 
                     {error && (

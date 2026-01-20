@@ -2,7 +2,7 @@
   "expo": {
     "name": "iLoveGallery",
     "slug": "ilovegallery",
-    "version": "1.0.5",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ilra",
@@ -16,14 +16,25 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ilovegallery.app.v2",
-      "buildNumber": "8",
+      "buildNumber": "9",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "iLoveGallery needs access to your camera so you can capture photos during events and contribute to the shared gallery.",
+        "NSPhotoLibraryUsageDescription": "iLoveGallery needs access to your photos so you can select a cover image for your events.",
+        "NSPhotoLibraryAddUsageDescription": "iLoveGallery needs permission to save the shared event photos to your device's gallery.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.402998744302-1bpgcptffmaums3bcht6fo0c6dd1ki60"
+            ]
+          }
+        ]
       }
     },
     "android": {
       "package": "com.ilovegallery.app",
-      "versionCode": 12,
+      "versionCode": 15,
       "icon": "./assets/images/android-icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/android-icon.png",
@@ -39,7 +50,8 @@
         "android.permission.READ_MEDIA_VIDEO",
         "android.permission.READ_MEDIA_AUDIO",
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -51,18 +63,19 @@
       [
         "expo-media-library",
         {
-          "photosPermission": "Permite que iLoveGallery guarde las fotos tomadas en tu galería.",
-          "savePhotosPermission": "Permite que iLoveGallery guarde las fotos tomadas en tu galería."
+          "photosPermission": "iLoveGallery needs to access your photos to save the event recap into your personal gallery.",
+          "savePhotosPermission": "iLoveGallery needs to save photos to your library so you can keep memories from the events you attend."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Permite que iLoveGallery acceda a tus fotos para elegir una portada.",
-          "cameraPermission": "Permite que iLoveGallery use tu cámara para tomar fotos del evento."
+          "photosPermission": "iLoveGallery needs likely access to your photos to let you pick a cover image for your new event.",
+          "cameraPermission": "iLoveGallery needs access to your camera to let you take photos and participate in the event."
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true

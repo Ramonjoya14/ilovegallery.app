@@ -2,9 +2,10 @@ import { useSettings } from '@/context/AppSettingsContext';
 import { auth } from '@/lib/firebase';
 import { databaseService } from '@/services/database';
 import { FontAwesome5, Ionicons } from '@expo/vector-icons';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithCredential, signInWithEmailAndPassword } from 'firebase/auth';
 import React, { useState } from 'react';
 import { ActivityIndicator, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +25,55 @@ export default function LoginScreen() {
 
     const [emailError, setEmailError] = useState('');
     const [passwordError, setPasswordError] = useState('');
+
+    React.useEffect(() => {
+        GoogleSignin.configure({
+            webClientId: '402998744302-4m2nks2act8ec7i1q7crvd2ishcpip01.apps.googleusercontent.com',
+        });
+    }, []);
+
+    const handleGoogleLogin = async () => {
+        try {
+            setLoading(true);
+            await GoogleSignin.hasPlayServices();
+            const userInfo = await GoogleSignin.signIn();
+            const idToken = userInfo.data?.idToken;
+            if (!idToken) {
+                throw new Error('No ID token found');
+            }
+
+            const credential = GoogleAuthProvider.credential(idToken);
+            const userCredential = await signInWithCredential(auth, credential);
+            const user = userCredential.user;
+
+            const isNewUser = (userCredential as any)._tokenResponse?.isNewUser ||
+                user.metadata.creationTime === user.metadata.lastSignInTime;
+
+            if (isNewUser) {
+                await databaseService.updateUserProfile(user.uid, {
+                    email: user.email,
+                    displayName: user.displayName || userInfo.data?.user.name,
+                    photoURL: user.photoURL || userInfo.data?.user.photo,
+                    createdAt: new Date(),
+                    authProvider: 'google'
+                });
+
+                router.replace('/onboarding');
+            } else {
+                router.replace('/(tabs)');
+            }
+
+        } catch (error: any) {
+            console.error(error);
+            if (error.code === '4') {
+                setLoading(false);
+                return;
+            }
+            alert(t('error_login_generic') + ': ' + error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleLogin = async () => {
         setEmailError('');
@@ -180,6 +230,19 @@ export default function LoginScreen() {
                                 </>
                             )}
                         </TouchableOpacity>
+
+                        <View style={styles.dividerContainer}>
+                            <View style={styles.divider} />
+                            <Text style={styles.dividerText}>O</Text>
+                            <View style={styles.divider} />
+                        </View>
+
+                        <View style={styles.socialButtons}>
+                            <TouchableOpacity style={styles.socialButton} onPress={handleGoogleLogin} disabled={loading}>
+                                <FontAwesome5 name="google" size={20} color="#FFF" />
+                                <Text style={styles.socialButtonText}>{t('btn_google')}</Text>
+                            </TouchableOpacity>
+                        </View>
 
                         <TouchableOpacity
                             style={styles.guestButton}
@@ -348,7 +411,7 @@ const styles = StyleSheet.create({
     },
     socialButtons: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        justifyContent: 'center',
         marginBottom: 40,
     },
     socialButton: {
@@ -356,7 +419,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: '#1C1611',
-        width: '48%',
+        width: '100%',
         height: 55,
         borderRadius: 30,
         borderWidth: 1,

@@ -37,7 +37,7 @@ const translations = {
         start_date: 'Cuándo empieza',
         pin_protect: 'Contraseña del evento',
         pin_sub: 'Requiere un PIN para entrar',
-        pin_label: 'Código PIN (4 dígitos)',
+        pin_label: 'Código PIN (6 dígitos)',
         error_event_name_required: 'Por favor ingresa un nombre para el evento',
         select_date: 'Seleccionar fecha',
 
@@ -138,7 +138,7 @@ const translations = {
         action_make_private: 'Hacer Privado',
         action_make_public: 'Hacer Público',
         action_remove_pin: 'Remover PIN',
-        enter_pin_prompt: 'Crea un PIN de 4 dígitos para este evento',
+        enter_pin_prompt: 'Crea un PIN de 6 dígitos para este evento',
         remove_pin_confirm: '¿Seguro que quieres hacer este evento público? Ya no requerirá contraseña.',
 
         // Errors
@@ -250,6 +250,7 @@ const translations = {
         verify_email_subtitle: 'Pulsa aquí para recibir el enlace',
         forgot_password_link: '¿Olvidaste tu contraseña?',
         btn_login: 'Entrar',
+        btn_google: 'Continuar con Google',
         btn_guest: 'Continuar como Invitado',
         register_prompt: '¿No tienes cuenta? ',
         register_link: 'Regístrate',
@@ -328,7 +329,7 @@ const translations = {
         success_event_created_subtitle: 'Tu cámara desechable está lista.',
         success_event_created_msg: 'Evento creado correctamente.',
         error_create_event: 'No se pudo crear el evento. Inténtalo de nuevo.',
-        error_pin_required: 'Por favor ingresa un PIN de 4 dígitos si deseas proteger el evento',
+        error_pin_required: 'Por favor ingresa un PIN de 6 dígitos si deseas proteger el evento',
         select_source: 'Seleccionar origen',
         camera: 'Cámara',
         gallery: 'Galería',
@@ -487,7 +488,7 @@ const translations = {
         action_make_private: 'Make Private',
         action_make_public: 'Make Public',
         action_remove_pin: 'Remove PIN',
-        enter_pin_prompt: 'Create a 4-digit PIN for this event',
+        enter_pin_prompt: 'Create a 6-digit PIN for this event',
         remove_pin_confirm: 'Are you sure you want to make this event public? It will no longer require a password.',
 
         // Errors
@@ -513,7 +514,7 @@ const translations = {
         start_date: 'Starts on',
         pin_protect: 'Event Password',
         pin_sub: 'Requires a PIN to enter',
-        pin_label: 'PIN Code (4 digits)',
+        pin_label: 'PIN Code (6 digits)',
         error_event_name_required: 'Please enter an event name',
         select_date: 'Select Date',
 
@@ -648,6 +649,7 @@ const translations = {
         verify_email_subtitle: 'Tap here to receive the link',
         forgot_password_link: 'Forgot your password?',
         btn_login: 'Login',
+        btn_google: 'Continue with Google',
         btn_guest: 'Continue as Guest',
         register_prompt: 'Don\'t have an account? ',
         register_link: 'Sign Up',
@@ -726,7 +728,7 @@ const translations = {
         success_event_created_subtitle: 'Your disposable camera is ready.',
         success_event_created_msg: 'Event created successfully.',
         error_create_event: 'Could not create the event. Try again.',
-        error_pin_required: 'Please enter a 4-digit PIN to protect the event',
+        error_pin_required: 'Please enter a 6-digit PIN to protect the event',
         select_source: 'Select Source',
         camera: 'Camera',
         gallery: 'Gallery',
