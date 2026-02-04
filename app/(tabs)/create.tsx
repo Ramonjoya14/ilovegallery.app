@@ -2,13 +2,17 @@ import { Text } from '@/components/Themed';
 import { useAlert } from '@/context/AlertContext';
 import { useSettings } from '@/context/AppSettingsContext';
 import { useAuth } from '@/context/AuthContext';
+import { auth } from '@/lib/firebase';
 import { databaseService } from '@/services/database';
 import { storageService } from '@/services/storage';
-import { FontAwesome } from '@expo/vector-icons';
+import { FontAwesome, FontAwesome5 } from '@expo/vector-icons';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
+import { GoogleAuthProvider, OAuthProvider, signInWithCredential } from 'firebase/auth';
 import React, { useState } from 'react';
-import { Dimensions, Image, Modal, ScrollView, StyleSheet, Switch, TextInput, TouchableOpacity, View } from 'react-native';
+import { Dimensions, Image, Modal, Platform, ScrollView, StyleSheet, Switch, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
@@ -39,6 +43,106 @@ export default function CreateEventScreen() {
     const [isLoading, setIsLoading] = useState(false);
     const [coverImage, setCoverImage] = useState<string | null>(null);
     const [showCoverSource, setShowCoverSource] = useState(false);
+    const [showLoginModal, setShowLoginModal] = useState(false);
+
+    React.useEffect(() => {
+        GoogleSignin.configure({
+            webClientId: '402998744302-4m2nks2act8ec7i1q7crvd2ishcpip01.apps.googleusercontent.com',
+        });
+    }, []);
+
+    const handleGoogleLogin = async () => {
+        try {
+            setIsLoading(true);
+            await GoogleSignin.hasPlayServices();
+            const userInfo = await GoogleSignin.signIn();
+            const idToken = userInfo.data?.idToken;
+            if (!idToken) throw new Error('No ID token found');
+
+            const credential = GoogleAuthProvider.credential(idToken);
+            const userCredential = await signInWithCredential(auth, credential);
+            const user = userCredential.user;
+
+            const isNewUser = (userCredential as any)._tokenResponse?.isNewUser ||
+                user.metadata.creationTime === user.metadata.lastSignInTime;
+
+            if (isNewUser) {
+                await databaseService.updateUserProfile(user.uid, {
+                    email: user.email,
+                    displayName: user.displayName || userInfo.data?.user.name,
+                    photoURL: user.photoURL || userInfo.data?.user.photo,
+                    createdAt: new Date(),
+                    authProvider: 'google'
+                });
+                setShowLoginModal(false);
+                router.push('/onboarding');
+            } else {
+                setShowLoginModal(false);
+            }
+        } catch (error: any) {
+            console.error(error);
+            if (error.code === '4') { // SIGN_IN_CANCELLED
+                // ignore
+            } else {
+                showAlert({ title: t('alert_error'), message: t('error_login_generic'), type: 'error' });
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleAppleLogin = async () => {
+        try {
+            setIsLoading(true);
+            const isAvailable = await AppleAuthentication.isAvailableAsync();
+            if (!isAvailable) {
+                showAlert({ title: t('alert_warning'), message: 'Apple Sign In is not available', type: 'warning' });
+                return;
+            }
+
+            const credential = await AppleAuthentication.signInAsync({
+                requestedScopes: [
+                    AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+                    AppleAuthentication.AppleAuthenticationScope.EMAIL,
+                ],
+            });
+
+            const { identityToken, email: appleEmail, fullName } = credential;
+            if (!identityToken) throw new Error('No Identity Token');
+
+            const provider = new OAuthProvider('apple.com');
+            const oAuthCredential = provider.credential({ idToken: identityToken });
+            const userCredential = await signInWithCredential(auth, oAuthCredential);
+            const user = userCredential.user;
+
+            const isNewUser = (userCredential as any)._tokenResponse?.isNewUser ||
+                user.metadata.creationTime === user.metadata.lastSignInTime;
+
+            if (isNewUser) {
+                const name = fullName?.givenName ? `${fullName.givenName} ${fullName.familyName || ''}`.trim() : null;
+                await databaseService.updateUserProfile(user.uid, {
+                    email: user.email || appleEmail,
+                    displayName: user.displayName || name || 'Apple User',
+                    photoURL: user.photoURL || null,
+                    createdAt: new Date(),
+                    authProvider: 'apple'
+                });
+                setShowLoginModal(false);
+                router.push('/onboarding');
+            } else {
+                setShowLoginModal(false);
+            }
+        } catch (e: any) {
+            console.error(e);
+            if (e.code === 'ERR_CANCELED') {
+                // User canceled
+            } else {
+                // showAlert({ title: t('alert_error'), message: e.message, type: 'error' });
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     React.useEffect(() => {
         if (!user) {
@@ -91,6 +195,11 @@ export default function CreateEventScreen() {
     };
 
     const handleCreateEvent = async () => {
+        if (user?.isAnonymous) {
+            setShowLoginModal(true);
+            return;
+        }
+
         if (!eventName.trim()) {
             showAlert({
                 title: t('alert_error'),
@@ -439,6 +548,48 @@ export default function CreateEventScreen() {
                 </TouchableOpacity>
             </Modal>
 
+            {/* Guest Login Modal */}
+            <Modal
+                visible={showLoginModal}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowLoginModal(false)}
+            >
+                <TouchableOpacity
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={() => setShowLoginModal(false)}
+                >
+                    <View style={[styles.sourceModalContent, { backgroundColor: theme.card, borderColor: theme.border, paddingBottom: insets.bottom + 20 }]}>
+                        <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
+                        <Text style={[styles.sourceModalTitle, { color: theme.text }]}>{language === 'es' ? 'Inicia sesión para crear' : 'Sign in to create'}</Text>
+                        <Text style={{ color: theme.textSecondary, textAlign: 'center', marginBottom: 25, fontSize: 15 }}>
+                            {language === 'es'
+                                ? 'Para crear un evento necesitas una cuenta. Inicia sesión o regístrate en segundos.'
+                                : 'To create an event you need an account. Sign in or sign up in seconds.'}
+                        </Text>
+
+                        <View style={{ gap: 15, marginBottom: 15 }}>
+                            <TouchableOpacity style={styles.socialButton} onPress={handleGoogleLogin}>
+                                <FontAwesome5 name="google" size={20} color="#FFF" />
+                                <Text style={styles.socialButtonText}>{t('btn_google')}</Text>
+                            </TouchableOpacity>
+
+                            {Platform.OS === 'ios' && (
+                                <TouchableOpacity style={[styles.socialButton, { backgroundColor: theme.text, borderColor: theme.text }]} onPress={handleAppleLogin}>
+                                    <FontAwesome5 name="apple" size={22} color={theme.background} />
+                                    <Text style={[styles.socialButtonText, { color: theme.background }]}>{t('btn_apple')}</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+
+                        <TouchableOpacity style={[styles.sourceCancelButton, { backgroundColor: theme.background, marginTop: 10 }]} onPress={() => setShowLoginModal(false)}>
+                            <Text style={styles.sourceCancelText}>{t('cancel')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
+
         </View>
     );
 }
@@ -718,6 +869,22 @@ const styles = StyleSheet.create({
     },
     sourceCancelText: {
         color: '#8E8E93',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    socialButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#DB4437', // Google Red
+        width: '100%',
+        height: 55,
+        borderRadius: 20,
+        marginBottom: 10,
+    },
+    socialButtonText: {
+        color: '#FFF',
+        marginLeft: 10,
         fontSize: 16,
         fontWeight: 'bold',
     },
