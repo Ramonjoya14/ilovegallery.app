@@ -4,7 +4,9 @@ import { getReactNativePersistence, initializeAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
-// Your web app's Firebase configuration
+// Firebase configuration
+// Note: For Firebase Web SDK, these keys are designed to be public
+// Security is enforced through Firestore and Storage Security Rules
 const firebaseConfig = {
     projectId: "instaroll-2026",
     appId: "1:402998744302:web:fdfa52114047312fb10fff",

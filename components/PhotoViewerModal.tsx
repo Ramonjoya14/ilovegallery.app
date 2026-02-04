@@ -113,6 +113,13 @@ const MediaItem = React.memo(({ item, isFocused }: { item: Photo, isFocused: boo
                     onPlaybackStatusUpdate={status => {
                         if (!status.isLoaded) return;
                         setIsBuffering(status.isBuffering);
+
+                        // Handle finish for looping stability on Android
+                        if (status.didJustFinish && status.isLooping) {
+                            // Optionally manually replay if native looping fails
+                            // videoRef.current?.replayAsync(); 
+                        }
+
                         if (status.isBuffering || status.isPlaying) {
                             setIsLoading(false);
                         }

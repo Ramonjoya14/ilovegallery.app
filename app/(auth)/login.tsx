@@ -3,9 +3,10 @@ import { auth } from '@/lib/firebase';
 import { databaseService } from '@/services/database';
 import { FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { GoogleAuthProvider, signInWithCredential, signInWithEmailAndPassword } from 'firebase/auth';
+import { GoogleAuthProvider, OAuthProvider, signInWithCredential, signInWithEmailAndPassword } from 'firebase/auth';
 import React, { useState } from 'react';
 import { ActivityIndicator, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -70,6 +71,68 @@ export default function LoginScreen() {
                 return;
             }
             alert(t('error_login_generic') + ': ' + error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleAppleLogin = async () => {
+        try {
+            setLoading(true);
+            const isAvailable = await AppleAuthentication.isAvailableAsync();
+            if (!isAvailable) {
+                alert(t('error_apple_not_available') || 'Apple Sign In is not available on this device');
+                return;
+            }
+
+            const credential = await AppleAuthentication.signInAsync({
+                requestedScopes: [
+                    AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+                    AppleAuthentication.AppleAuthenticationScope.EMAIL,
+                ],
+            });
+
+            const { identityToken, email: appleEmail, fullName } = credential;
+
+            if (!identityToken) {
+                throw new Error('No Identity Token');
+            }
+
+            const provider = new OAuthProvider('apple.com');
+            const oAuthCredential = provider.credential({
+                idToken: identityToken,
+            });
+
+            const userCredential = await signInWithCredential(auth, oAuthCredential);
+            const user = userCredential.user;
+
+            const isNewUser = (userCredential as any)._tokenResponse?.isNewUser ||
+                user.metadata.creationTime === user.metadata.lastSignInTime;
+
+            if (isNewUser) {
+                // Apple only returns name on first login
+                const name = fullName?.givenName ? `${fullName.givenName} ${fullName.familyName || ''}`.trim() : null;
+
+                await databaseService.updateUserProfile(user.uid, {
+                    email: user.email || appleEmail,
+                    displayName: user.displayName || name || 'Apple User',
+                    photoURL: user.photoURL || null,
+                    createdAt: new Date(),
+                    authProvider: 'apple'
+                });
+
+                router.replace('/onboarding');
+            } else {
+                router.replace('/(tabs)');
+            }
+
+        } catch (e: any) {
+            console.error(e);
+            if (e.code === 'ERR_CANCELED') {
+                // User canceled
+            } else {
+                // alert(t('error_login_generic') + ': ' + e.message);
+            }
         } finally {
             setLoading(false);
         }
@@ -242,6 +305,17 @@ export default function LoginScreen() {
                                 <FontAwesome5 name="google" size={20} color="#FFF" />
                                 <Text style={styles.socialButtonText}>{t('btn_google')}</Text>
                             </TouchableOpacity>
+
+                            {Platform.OS === 'ios' && (
+                                <TouchableOpacity
+                                    style={[styles.socialButton, { marginTop: 15, backgroundColor: '#FFF', borderColor: '#FFF' }]}
+                                    onPress={handleAppleLogin}
+                                    disabled={loading}
+                                >
+                                    <FontAwesome5 name="apple" size={22} color="#000" />
+                                    <Text style={[styles.socialButtonText, { color: '#000' }]}>{t('btn_apple') || 'Sign in with Apple'}</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
 
                         <TouchableOpacity
@@ -410,7 +484,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
     socialButtons: {
-        flexDirection: 'row',
+        flexDirection: 'column',
         justifyContent: 'center',
         marginBottom: 40,
     },

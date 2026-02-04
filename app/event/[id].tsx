@@ -138,7 +138,8 @@ export default function EventDetailScreen() {
             if (!result.canceled && result.assets && result.assets.length > 0) {
                 const captures = result.assets.map(asset => ({
                     uri: asset.uri,
-                    type: (asset.type === 'video' ? 'video' : 'image') as 'image' | 'video'
+                    type: (asset.type === 'video' ? 'video' : 'image') as 'image' | 'video',
+                    saveToLibrary: false
                 }));
                 onCapture(captures);
             }
@@ -158,7 +159,7 @@ export default function EventDetailScreen() {
         setIsCameraVisible(true);
     };
 
-    const onCapture = async (captures: { uri: string, type: 'image' | 'video' }[]) => {
+    const onCapture = async (captures: { uri: string, type: 'image' | 'video', saveToLibrary?: boolean }[]) => {
         if (!user || !event) return;
 
         const isBatch = captures.length > 1;
@@ -170,8 +171,10 @@ export default function EventDetailScreen() {
             eventId: event.id as string,
             userId: user.uid,
             userName: user.displayName || t('guest'),
+            userName: user.displayName || t('guest'),
             timestamp: new Date(),
-            type: c.type
+            type: c.type,
+            saveToLibrary: c.saveToLibrary
         }));
 
         setPendingPhotos(prev => [...newPendingPhotos, ...prev]);
@@ -182,7 +185,7 @@ export default function EventDetailScreen() {
         for (let i = 0; i < newPendingPhotos.length; i += chunkSize) {
             const chunk = newPendingPhotos.slice(i, i + chunkSize);
             await Promise.all(chunk.map(photo =>
-                processSingleUpload(photo.url, photo.type as 'image' | 'video', photo.id!)
+                processSingleUpload(photo.url, photo.type as 'image' | 'video', photo.id!, (photo as any).saveToLibrary)
             ));
         }
 
@@ -193,11 +196,11 @@ export default function EventDetailScreen() {
         }
     };
 
-    const processSingleUpload = async (uri: string, type: 'image' | 'video', tempId: string) => {
+    const processSingleUpload = async (uri: string, type: 'image' | 'video', tempId: string, saveToLibrary: boolean = false) => {
         if (!user || !event) return;
 
         try {
-            if (Platform.OS !== 'web') {
+            if (Platform.OS !== 'web' && saveToLibrary) {
                 MediaLibrary.requestPermissionsAsync().then(({ status }) => {
                     if (status === 'granted') {
                         MediaLibrary.saveToLibraryAsync(uri);

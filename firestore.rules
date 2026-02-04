@@ -1,8 +1,69 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+    
+    // ============================================
+    // USERS COLLECTION
+    // ============================================
+    // Users can read any authenticated user's profile
+    // Users can only write to their own profile
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
     }
+    
+    // ============================================
+    // EVENTS COLLECTION
+    // ============================================
+    // Authenticated users can read all events
+    // Only authenticated users can create events
+    // Only the organizer can update or delete their events
+    match /events/{eventId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && 
+                      request.resource.data.organizerId == request.auth.uid;
+      allow update: if request.auth != null && 
+                      resource.data.organizerId == request.auth.uid;
+      allow delete: if request.auth != null && 
+                      resource.data.organizerId == request.auth.uid;
+    }
+    
+    // ============================================
+    // PHOTOS COLLECTION
+    // ============================================
+    // Authenticated users can read all photos
+    // Only authenticated users can create photos
+    // Only the photo owner can delete their photos
+    match /photos/{photoId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && 
+                      request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null && 
+                      resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && 
+                      resource.data.userId == request.auth.uid;
+    }
+    
+    // ============================================
+    // NOTIFICATIONS COLLECTION
+    // ============================================
+    // Users can only read and write their own notifications
+    match /notifications/{notificationId} {
+      allow read: if request.auth != null && 
+                    resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && 
+                      request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null && 
+                      resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && 
+                      resource.data.userId == request.auth.uid;
+    }
+    
+    // ============================================
+    // DEFAULT DENY ALL
+    // ============================================
+    // Any other collection is denied by default
   }
 }

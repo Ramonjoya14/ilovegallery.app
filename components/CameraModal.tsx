@@ -17,7 +17,7 @@ const { width, height } = Dimensions.get('window');
 interface CameraModalProps {
     isVisible: boolean;
     onClose: () => void;
-    onCapture: (captures: { uri: string, type: 'image' | 'video' }[]) => Promise<void>;
+    onCapture: (captures: { uri: string, type: 'image' | 'video', saveToLibrary?: boolean }[]) => Promise<void>;
     maxPhotos: number;
     currentPhotos: number;
     eventName: string;
@@ -178,10 +178,10 @@ export default function CameraModal({
         }
     };
 
-    const onCaptureProxy = async (uri: string, type: 'image' | 'video') => {
+    const onCaptureProxy = async (uri: string, type: 'image' | 'video', saveToLibrary: boolean = true) => {
         setLastPhotoUri(uri);
         // Fire and forget: don't await the parent's onCapture to keep shutter instant
-        onCapture([{ uri, type }]).catch(e => console.error("Bg upload failed", e));
+        onCapture([{ uri, type, saveToLibrary }]).catch(e => console.error("Bg upload failed", e));
     };
 
     const handleGalleryUpload = async () => {
@@ -206,7 +206,8 @@ export default function CameraModal({
         if (!result.canceled && result.assets && result.assets.length > 0) {
             const captures = result.assets.map(asset => ({
                 uri: asset.uri,
-                type: (asset.type === 'video' ? 'video' : 'image') as 'image' | 'video'
+                type: (asset.type === 'video' ? 'video' : 'image') as 'image' | 'video',
+                saveToLibrary: false
             }));
 
             // Set first one as thumbnail
@@ -244,7 +245,7 @@ export default function CameraModal({
                     photoPromise.then(photo => {
                         setIsCapturing(false);
                         if (photo) {
-                            onCaptureProxy(photo.uri, 'image');
+                            onCaptureProxy(photo.uri, 'image', true);
                         }
                     }).catch(err => {
                         console.error("Error processing photo:", err);
@@ -271,7 +272,7 @@ export default function CameraModal({
                         maxDuration: 30,
                     }).then(video => {
                         if (video) {
-                            onCaptureProxy(video.uri, 'video');
+                            onCaptureProxy(video.uri, 'video', true);
                         }
                     }).catch(e => console.error("Video record error", e))
                         .finally(() => setIsRecording(false));
